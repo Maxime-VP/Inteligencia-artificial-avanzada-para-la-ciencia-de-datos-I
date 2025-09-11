@@ -25,6 +25,10 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
 
 def gradient_descent(X, y, learning_rate=0.001, iterations=25000):
     # Convertir a numpy arrays
@@ -291,7 +295,104 @@ def run_test_code():
     
     return w, b, X_test, y_test
 
+def gradient_descent_torch(X, y, learning_rate=0.001, iterations=20000):
+    # Convertir numpy a tensores de PyTorch
+    X = torch.tensor(X, dtype=torch.float32)
+    y = torch.tensor(y, dtype=torch.float32).view(-1, 1)  # columna
 
+    n_samples, n_features = X.shape
+
+    # Definir modelo lineal: y = Xw + b
+    model = nn.Linear(n_features, 1, bias=True)
+
+    # Definir función de pérdida (MSE)
+    criterion = nn.MSELoss()
+
+    # Definir optimizador (SGD en este caso)
+    optimizer = optim.SGD(model.parameters(), lr=learning_rate)
+
+    # Entrenar
+    for i in range(iterations):
+        # Forward pass
+        y_pred = model(X)
+
+        # Calcular pérdida
+        loss = criterion(y_pred, y)
+
+        # Backpropagation
+        optimizer.zero_grad()
+        loss.backward()
+
+        # Update
+        optimizer.step()
+
+        if i % 5000 == 0:
+            print(f"Iter {i}: Loss={loss.item():.4f}")
+
+    # Extraer pesos y bias entrenados
+    w = model.weight.detach().numpy().flatten()
+    b = model.bias.item()
+    return w, b, model
+
+def run_test_code_torch():
+    np.random.seed(42)
+    X = np.random.randint(0, 10, (1000, 4))
+    y = 2*X[:,0] + 3*X[:,1] + 5*X[:,2] + 7*X[:,3] + 4
+
+    # Entrenamiento con PyTorch
+    w, b, model = gradient_descent_torch(X, y, learning_rate=0.001, iterations=20000)
+
+    print("Pesos finales:", w)
+    print("Bias final:", b)
+
+    # Predicciones en un test set
+    X_train, X_test, y_train, y_test = train_test_split(X, y)
+    X_test_tensor = torch.tensor(X_test, dtype=torch.float32)
+    y_pred_test = model(X_test_tensor).detach().numpy().flatten()
+
+    plot_results(y_test, y_pred_test, "Test Set (PyTorch)")
+
+    return w, b, X_test, y_test
+
+def run_Abalone_torch():
+    raw_data = load_data("abalone.data")
+    X, y = preprocess_data(raw_data)
+    X_train, X_test, y_train, y_test = train_test_split(X, y)
+
+    # Entrenar modelo con PyTorch
+    w, b, model = gradient_descent_torch(X_train, y_train, learning_rate=0.001, iterations=20000)
+
+    print("Pesos finales:", w)
+    print("Bias final:", b)
+
+    # Predicciones en test
+    X_test_tensor = torch.tensor(X_test, dtype=torch.float32)
+    y_pred_test = model(X_test_tensor).detach().numpy().flatten()
+
+    plot_results(y_test, y_pred_test, "Test Set (PyTorch - Abalone)")
+
+    return w, b, X_test, y_test
+
+
+def run_Abalone_torch_standardized():
+    raw_data = load_data("abalone.data")
+    X, y = preprocess_data(raw_data)
+    X_train, X_test, y_train, y_test = train_test_split(X, y)
+    X_train, X_test = standardize(X_train, X_test)
+
+    # Entrenar modelo con PyTorch
+    w, b, model = gradient_descent_torch(X_train, y_train, learning_rate=0.001, iterations=20000)
+
+    print("Pesos finales:", w)
+    print("Bias final:", b)
+
+    # Predicciones en test
+    X_test_tensor = torch.tensor(X_test, dtype=torch.float32)
+    y_pred_test = model(X_test_tensor).detach().numpy().flatten()
+
+    plot_results(y_test, y_pred_test, "Standardized Test Set (PyTorch - Abalone)")
+
+    return w, b, X_test, y_test
 
 
 # Predecir con los coeficientes obtenidos
@@ -308,8 +409,12 @@ def r_squared(y_true, y_pred):
 
 def main():
     print("Escribe 1, 2, 3 o 4")
-    eleccion = input("1 - Correr con el dataset de abalone \n2 - Correr con un set de prueba\n"
-                     "3 - Correr abalone con set de validacion\n4 - Correr abalone con validación + standarización\nEleccion: ")
+    eleccion = input("1 - Correr dataset de abalone (train y test) \n2 - Correr con un set de prueba (train y test)\n"
+                     "3 - Correr abalone con set de validacion (train, test y val)\n4 - Correr abalone con validación (train, test y val) + standarización (mejora)\n"
+                     "5 - Correr set artificial con PyTorch (Framework)\n6 - Correr abalone con PyTorch (Framework)\n" \
+                     "7 - Correr abalone con PyTorch (Framework) + standarización (mejora)\n" \
+                     "8 - Salir\n" \
+                     "Eleccion: ")
 
     if eleccion == "1":
         w, b, X_test, y_test = run_Abalone()
@@ -332,6 +437,22 @@ def main():
         plot_results(y_train, y_train_pred, "Train Set (Estandarizado)")
         plot_results(y_val, y_val_pred, "Validation Set (Estandarizado)")
         plot_results(y_test, y_test_pred, "Test Set (Estandarizado)")
+
+    elif eleccion == "5":
+        w, b, X_test, y_test = run_test_code_torch()
+        # Las predicciones ya se grafican dentro de la función run_test_code_torch
+
+    elif eleccion == "6":
+        w, b, X_test, y_test = run_Abalone_torch()
+        # Las predicciones ya se grafican dentro de la función run_Abalone_torch
+
+    elif eleccion == "7":
+        w, b, X_test, y_test = run_Abalone_torch_standardized()
+        # Las predicciones ya se grafican dentro de la función run_Abalone_torch_standardized
+
+    elif eleccion == "8":
+        print("Saliendo...")
+        return
 
     else:
         print("Eleccion no valida")
