@@ -115,6 +115,65 @@ def train_test_split(X, y, test_size=0.2, seed=42):
 
     return X_train, X_test, y_train, y_test
 
+# Separar en entrenamiento (60%) y test (20%) y validacion 20%)
+def train_val_test_split(X, y, val_size=0.2, test_size=0.2, seed=42):
+    np.random.seed(seed)
+    n_samples = X.shape[0]
+    indices = np.arange(n_samples)
+    np.random.shuffle(indices)
+
+    test_split = int(n_samples * test_size)
+    val_split = int(n_samples * (test_size + val_size))
+
+    test_idx = indices[:test_split]
+    val_idx = indices[test_split:val_split]
+    train_idx = indices[val_split:]
+
+    X_train, X_val, X_test = X[train_idx], X[val_idx], X[test_idx]
+    y_train, y_val, y_test = y[train_idx], y[val_idx], y[test_idx]
+
+    return X_train, X_val, X_test, y_train, y_val, y_test
+
+# Diagnostico del modelo basado en R2 de train y val
+def diagnostico_modelo(y_train, y_train_pred, y_val, y_val_pred):
+    r2_train = r_squared(y_train, y_train_pred)
+    r2_val = r_squared(y_val, y_val_pred)
+
+    # Bias
+    if r2_train < 0.3:
+        bias = "Alto (modelo no aprende bien)"
+    elif r2_train < 0.7:
+        bias = "Medio (modelo mejora pero sigue limitado)"
+    else:
+        bias = "Bajo (modelo aprende bien)"
+
+    # Varianza
+    diff = abs(r2_train - r2_val)
+    
+    if diff > 0.2:
+        varianza = "Alta (cambia mucho entre train y val)"
+    elif diff > 0.1:
+        varianza = "Media (algo de diferencia)"
+    else:
+        varianza = "Baja (modelo consistente)"
+
+    # Ajuste
+    if r2_train < 0.3:
+        ajuste = "Underfit (el modelo no captura los patrones)"
+    elif r2_train >= 0.7 and diff > 0.2:
+        ajuste = "Overfit (memoriza train pero falla en val)"
+    else:
+        ajuste = "Fit (buen balance entre bias y varianza)"
+
+    return {
+        "R2_train": r2_train,
+        "R2_val": r2_val,
+        "Bias": bias,
+        "Varianza": varianza,
+        "Ajuste": ajuste
+    }
+
+
 def run_Abalone():
     raw_data = load_data("abalone.data")
     X, y = preprocess_data(raw_data)
@@ -125,6 +184,95 @@ def run_Abalone():
     print("Bias final:", b)
 
     return w, b, X_test, y_test
+
+def run_Abalone_Validation():
+    raw_data = load_data("abalone.data")
+    X, y = preprocess_data(raw_data)
+    
+    # usar el split con validación
+    X_train, X_val, X_test, y_train, y_val, y_test = train_val_test_split(X, y)
+
+    # entrenar el modelo
+    w, b = gradient_descent(X_train, y_train, learning_rate=0.001, iterations=20000)
+
+    # predicciones
+    y_train_pred = predict(X_train, w, b)
+    y_val_pred = predict(X_val, w, b)
+    y_test_pred = predict(X_test, w, b)
+
+    # diagnóstico
+    diag = diagnostico_modelo(y_train, y_train_pred, y_val, y_val_pred)
+    print("\n--- Diagnóstico del modelo ---")
+    for k, v in diag.items():
+        print(f"{k}: {v}")
+
+    # desempeño en test final
+    r2_test = r_squared(y_test, y_test_pred)
+    print(f"\nR2 en test set (generalización): {r2_test:.4f}")
+
+    return w, b, (y_train, y_train_pred), (y_val, y_val_pred), (y_test, y_test_pred)
+
+# Función de estandarización
+def standardize(X_train, X_val=None, X_test=None):
+    mean = X_train.mean(axis=0)
+    std = X_train.std(axis=0)
+    X_train_scaled = (X_train - mean) / std
+    
+    results = [X_train_scaled]
+    if X_val is not None:
+        X_val_scaled = (X_val - mean) / std
+        results.append(X_val_scaled)
+    if X_test is not None:
+        X_test_scaled = (X_test - mean) / std
+        results.append(X_test_scaled)
+    return tuple(results)
+
+def run_Abalone_Validation_Standardized():
+    raw_data = load_data("abalone.data")
+    X, y = preprocess_data(raw_data)
+    
+    # Split train/val/test
+    X_train, X_val, X_test, y_train, y_val, y_test = train_val_test_split(X, y)
+    
+    # Estandarizar los datos
+    X_train, X_val, X_test = standardize(X_train, X_val, X_test)
+
+    # Entrenar modelo sin regularización
+    w, b = gradient_descent(
+        X_train, y_train,
+        learning_rate=0.001,
+        iterations=20000
+    )
+
+    # Predicciones
+    y_train_pred = predict(X_train, w, b)
+    y_val_pred = predict(X_val, w, b)
+    y_test_pred = predict(X_test, w, b)
+
+    # Diagnóstico
+    diag = diagnostico_modelo(y_train, y_train_pred, y_val, y_val_pred)
+    print("\n--- Diagnóstico del modelo ESTANDARIZADO ---")
+    for k, v in diag.items():
+        print(f"{k}: {v}")
+
+    # R² en test
+    r2_test = r_squared(y_test, y_test_pred)
+    print(f"\nR2 en test set (generalización): {r2_test:.4f}")
+
+    return w, b, (y_train, y_train_pred), (y_val, y_val_pred), (y_test, y_test_pred)
+
+# Graficar resultados
+def plot_results(y_true, y_pred, title):
+    plt.figure(figsize=(6,5))
+    plt.scatter(y_true, y_pred, alpha=0.6, edgecolor="k")
+    plt.plot([y_true.min(), y_true.max()], [y_true.min(), y_true.max()], 'r--', linewidth=2)  
+    r2 = r_squared(y_true, y_pred)
+    plt.xlabel("Valores reales")
+    plt.ylabel("Valores predichos")
+    plt.title(f"{title} (R2={r2:.4f})")
+    plt.grid(True, linestyle="--", alpha=0.6)
+    plt.show()
+
 
 
 #Probar que funciona
@@ -144,6 +292,8 @@ def run_test_code():
     return w, b, X_test, y_test
 
 
+
+
 # Predecir con los coeficientes obtenidos
 def predict(X, w, b):
     return np.dot(X, w) + b
@@ -157,30 +307,35 @@ def r_squared(y_true, y_pred):
 # Hacer predicciones sobre el set de test
 
 def main():
-    print("Escribe 1 o 2")
-    eleccion = input("1 - Correr con el dataset de abalone \n2 - Correr con un set de prueba\n")
+    print("Escribe 1, 2, 3 o 4")
+    eleccion = input("1 - Correr con el dataset de abalone \n2 - Correr con un set de prueba\n"
+                     "3 - Correr abalone con set de validacion\n4 - Correr abalone con validación + standarización\nEleccion: ")
 
     if eleccion == "1":
         w, b, X_test, y_test = run_Abalone()
+        y_pred_test = predict(X_test, w, b)
+        plot_results(y_test, y_pred_test, "Test Set")
+
     elif eleccion == "2":
         w, b, X_test, y_test = run_test_code()
+        y_pred_test = predict(X_test, w, b)
+        plot_results(y_test, y_pred_test, "Test Set")
+
+    elif eleccion == "3":
+        w, b, (y_train, y_train_pred), (y_val, y_val_pred), (y_test, y_test_pred) = run_Abalone_Validation()
+        plot_results(y_train, y_train_pred, "Train Set")
+        plot_results(y_val, y_val_pred, "Validation Set")
+        plot_results(y_test, y_test_pred, "Test Set")
+
+    elif eleccion == "4":
+        w, b, (y_train, y_train_pred), (y_val, y_val_pred), (y_test, y_test_pred) = run_Abalone_Validation_Standardized()
+        plot_results(y_train, y_train_pred, "Train Set (Estandarizado)")
+        plot_results(y_val, y_val_pred, "Validation Set (Estandarizado)")
+        plot_results(y_test, y_test_pred, "Test Set (Estandarizado)")
+
     else:
         print("Eleccion no valida")
-
-    y_pred_test = predict(X_test, w, b)
-
-    # Calcular R2
-    r2 = r_squared(y_test, y_pred_test)
-    print(f"R2 en test set: {r2:.4f}")
-
-    plt.figure(figsize=(8,6))
-    plt.scatter(y_test, y_pred_test, alpha=0.6, edgecolor="k")
-    plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--', linewidth=2)  
-    plt.xlabel("Valores reales (y_test)")
-    plt.ylabel("Valores predichos (y_pred)")
-    plt.title(f"Prediccion con Gradient Descent (R2={r2:.4f})")
-    plt.grid(True, linestyle="--", alpha=0.6)
-    plt.show()
+        return
 
 
 main()
