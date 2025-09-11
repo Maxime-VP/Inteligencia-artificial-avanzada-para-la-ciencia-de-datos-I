@@ -23,4 +23,4 @@ Pasos para correr el código:
 
 - Correr en la terminal con el comando: python gradient_descent.py
 
-- Escribir "1" o "2" dependiendo de qué se quiera hacer
+- Escribir el número de la acción que se quiera hacer
