@@ -3,6 +3,8 @@
 Implementación de una técnica de aprendizaje máquina con y sin framework.pdf y Implementación de una técnica de aprendizaje máquina con y sin framework.docx son el mismo archivo (distinto formato) con la documentación del proyecto.
 
 El código de gradient_descent.py contiene tanto la implementación con framework como la implementación sin framework.
+Las opciones 3 y 4 son las opciones principales de la implementación sin framework.
+Las opciones 6 y 7 son las opciones principales de la implementación con framework.
 
 abalone.names es un archivo de contexto sobre el dataset seleccionado.
 
