@@ -62,6 +62,43 @@ def gradient_descent(X, y, learning_rate=0.001, iterations=25000):
 
     return w, b
 
+def gradient_descent_with_history(X_train, y_train, X_val, y_val, learning_rate=0.001, iterations=25000):
+    X_train = np.array(X_train)
+    y_train = np.array(y_train)
+    X_val = np.array(X_val)
+    y_val = np.array(y_val)
+
+    n_samples, n_features = X_train.shape  
+    w = np.zeros(n_features)
+    b = 0
+
+    cost_history_train = []
+    cost_history_val = []
+
+    for i in range(iterations):
+        # --- TRAIN ---
+        y_train_pred = np.dot(X_train, w) + b
+        cost_train = (1/n_samples) * np.sum((y_train - y_train_pred) ** 2)
+        cost_history_train.append(cost_train)
+
+        # --- VALIDATION ---
+        y_val_pred = np.dot(X_val, w) + b
+        cost_val = (1/len(y_val)) * np.sum((y_val - y_val_pred) ** 2)
+        cost_history_val.append(cost_val)
+
+        # --- GRADIENTES (solo con TRAIN) ---
+        dw = -(2/n_samples) * np.dot(X_train.T, (y_train - y_train_pred))
+        db = -(2/n_samples) * np.sum(y_train - y_train_pred)
+
+        # --- UPDATE ---
+        w -= learning_rate * dw
+        b -= learning_rate * db
+
+        if i % 5000 == 0:
+            print(f"Iter {i}: Train MSE={cost_train:.4f}, Val MSE={cost_val:.4f}")
+
+    return w, b, cost_history_train, cost_history_val
+
 # Cargar "abalone.data" 
 def load_data(filename="abalone.data"):
     data = []
@@ -138,6 +175,10 @@ def train_val_test_split(X, y, val_size=0.2, test_size=0.2, seed=42):
 
     return X_train, X_val, X_test, y_train, y_val, y_test
 
+
+def mse(y_true, y_pred):
+    return np.mean((y_true - y_pred) ** 2)
+
 # Diagnostico del modelo basado en R2 de train y val
 def diagnostico_modelo(y_train, y_train_pred, y_val, y_val_pred):
     r2_train = r_squared(y_train, y_train_pred)
@@ -197,7 +238,12 @@ def run_Abalone_Validation():
     X_train, X_val, X_test, y_train, y_val, y_test = train_val_test_split(X, y)
 
     # entrenar el modelo
-    w, b = gradient_descent(X_train, y_train, learning_rate=0.001, iterations=20000)
+    w, b, cost_history_train, cost_history_val = gradient_descent_with_history(
+    X_train, y_train,
+    X_val, y_val,
+    learning_rate=0.01,
+    iterations=15000
+)
 
     # predicciones
     y_train_pred = predict(X_train, w, b)
@@ -213,6 +259,26 @@ def run_Abalone_Validation():
     # desempeño en test final
     r2_test = r_squared(y_test, y_test_pred)
     print(f"\nR2 en test set (generalización): {r2_test:.4f}")
+
+    mse_train = mse(y_train, y_train_pred)
+    mse_val = mse(y_val, y_val_pred)
+    mse_test = mse(y_test, y_test_pred)
+
+    print("\n--- Mean Squared Error (MSE) ---")
+    print(f"Train MSE: {mse_train:.4f}")
+    print(f"Validation MSE: {mse_val:.4f}")
+    print(f"Test MSE: {mse_test:.4f}")
+
+    # Graficar el progreso del costo (MSE)
+    plt.figure(figsize=(8,5))
+    plt.plot(cost_history_train, label="MSE (train)", color="blue")
+    plt.plot(cost_history_val, label="MSE (validation)", color="orange")
+    plt.xlabel("Iteraciones")
+    plt.ylabel("MSE")
+    plt.title("Progreso del entrenamiento (MSE en train y validation)")
+    plt.legend()
+    plt.grid(True, linestyle="--", alpha=0.6)
+    plt.show()
 
     return w, b, (y_train, y_train_pred), (y_val, y_val_pred), (y_test, y_test_pred)
 
@@ -241,12 +307,13 @@ def run_Abalone_Validation_Standardized():
     # Estandarizar los datos
     X_train, X_val, X_test = standardize(X_train, X_val, X_test)
 
-    # Entrenar modelo sin regularización
-    w, b = gradient_descent(
-        X_train, y_train,
-        learning_rate=0.001,
-        iterations=20000
-    )
+    # Entrenar modelo sin regularización (con historial de costo)
+    w, b, cost_history_train, cost_history_val = gradient_descent_with_history(
+    X_train, y_train,
+    X_val, y_val,
+    learning_rate=0.01,
+    iterations=15000
+)
 
     # Predicciones
     y_train_pred = predict(X_train, w, b)
@@ -263,7 +330,33 @@ def run_Abalone_Validation_Standardized():
     r2_test = r_squared(y_test, y_test_pred)
     print(f"\nR2 en test set (generalización): {r2_test:.4f}")
 
+    mse_train = mse(y_train, y_train_pred)
+    mse_val = mse(y_val, y_val_pred)
+    mse_test = mse(y_test, y_test_pred)
+
+    print("\n--- Mean Squared Error (MSE) ---")
+    print(f"Train MSE: {mse_train:.4f}")
+    print(f"Validation MSE: {mse_val:.4f}")
+    print(f"Test MSE: {mse_test:.4f}")
+
+
+    
+
+    # Graficar ambos
+    plt.figure(figsize=(8,5))
+    plt.plot(cost_history_train, label="MSE (train)", color="blue")
+    plt.plot(cost_history_val, label="MSE (validation)", color="orange")
+    plt.xlabel("Iteraciones")
+    plt.ylabel("MSE")
+    plt.title("Evolución del MSE (train vs validation)")
+    plt.legend()
+    plt.grid(True, linestyle="--", alpha=0.6)
+    plt.show()
+
     return w, b, (y_train, y_train_pred), (y_val, y_val_pred), (y_test, y_test_pred)
+
+
+
 
 # Graficar resultados
 def plot_results(y_true, y_pred, title):
@@ -360,7 +453,7 @@ def run_Abalone_torch():
     X_train, X_test, y_train, y_test = train_test_split(X, y)
 
     # Entrenar modelo con PyTorch
-    w, b, model = gradient_descent_torch(X_train, y_train, learning_rate=0.001, iterations=20000)
+    w, b, model = gradient_descent_torch(X_train, y_train, learning_rate=0.01, iterations=15000)
 
     print("Pesos finales:", w)
     print("Bias final:", b)
@@ -381,7 +474,7 @@ def run_Abalone_torch_standardized():
     X_train, X_test = standardize(X_train, X_test)
 
     # Entrenar modelo con PyTorch
-    w, b, model = gradient_descent_torch(X_train, y_train, learning_rate=0.001, iterations=20000)
+    w, b, model = gradient_descent_torch(X_train, y_train, learning_rate=0.01, iterations=15000)
 
     print("Pesos finales:", w)
     print("Bias final:", b)
@@ -410,9 +503,9 @@ def r_squared(y_true, y_pred):
 def main():
     print("Escribe 1, 2, 3 o 4")
     eleccion = input("1 - Correr dataset de abalone (train y test) \n2 - Correr con un set de prueba (train y test)\n"
-                     "3 - Correr abalone con set de validacion (train, test y val)\n4 - Correr abalone con validación (train, test y val) + standarización (mejora)\n"
+                     "3 - Correr abalone con set de validacion (train, test y val)\n4 - Correr abalone con validación (train, test y val) + standarización\n"
                      "5 - Correr set artificial con PyTorch (Framework)\n6 - Correr abalone con PyTorch (Framework)\n" \
-                     "7 - Correr abalone con PyTorch (Framework) + standarización (mejora)\n" \
+                     "7 - Correr abalone con PyTorch (Framework) + standarización\n" \
                      "8 - Salir\n" \
                      "Eleccion: ")
 
